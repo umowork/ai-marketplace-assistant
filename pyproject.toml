@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=69.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-marketplace-assistant"
+version = "0.2.0"
+description = "AI-ассистент для аналитики товаров на Wildberries и Ozon"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+markers = [
+    "asyncio: mark test as async",
+    "slow: mark test as slow (deselect with '-m \"not slow\"')",
+    "mock: test that uses mock data",
+    "real_api: test that requires real API keys (skipped by default)",
+]
+
+[tool.coverage.run]
+source = ["marketplace_assistant", "main.py", "config.py"]
+omit = ["*/tests/*", "*.example"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 60
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_ignores = false
