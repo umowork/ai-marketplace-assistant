@@ -89,7 +89,14 @@ def create_app(
     # ===== Health =====
     @app.get("/health", response_model=HealthResponse, tags=["System"])
     async def health():
-        return HealthResponse(mock_mode=mock_mode)
+        status = "ok"
+        try:
+            # Verify cache is accessible
+            if cache is None:
+                status = "degraded"
+        except Exception:
+            status = "degraded"
+        return HealthResponse(status=status, mock_mode=mock_mode)
 
     # ===== Product =====
     @app.get(
