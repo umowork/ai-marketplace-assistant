@@ -3,6 +3,7 @@
 
 import os
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Security
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -65,6 +66,14 @@ def create_app(
         title="AI Marketplace Assistant API",
         description="API для аналитики товаров на Wildberries и Ozon",
         version="0.2.0",
+    )
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=os.getenv("CORS_ORIGINS", "http://localhost:3000").split(","),
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
     app.state.limiter = limiter
@@ -144,7 +153,7 @@ def create_app(
             return _product_to_response(product)
         except Exception as e:
             logger.error("Error fetching product %s: %s", article, e)
-            raise HTTPException(status_code=404, detail=str(e)) from e
+            raise HTTPException(status_code=404, detail="Product not found") from e
 
     # ===== Feedbacks =====
     @app.get(
@@ -185,7 +194,7 @@ def create_app(
             ]
         except Exception as e:
             logger.error("Error fetching feedbacks for %s: %s", article, e)
-            raise HTTPException(status_code=404, detail=str(e)) from e
+            raise HTTPException(status_code=404, detail="Feedbacks not found") from e
 
     # ===== Analyze Feedbacks =====
     @app.get(
@@ -229,7 +238,7 @@ def create_app(
             )
         except Exception as e:
             logger.error("Error analyzing feedbacks for %s: %s", article, e)
-            raise HTTPException(status_code=500, detail=str(e)) from e
+            raise HTTPException(status_code=500, detail="Failed to analyze feedbacks") from e
 
     # ===== Price Trend =====
     @app.get(
@@ -268,7 +277,7 @@ def create_app(
             )
         except Exception as e:
             logger.error("Error fetching price trend for %s: %s", article, e)
-            raise HTTPException(status_code=500, detail=str(e)) from e
+            raise HTTPException(status_code=500, detail="Failed to fetch price trend") from e
 
     # ===== Competitors =====
     @app.get(
@@ -315,7 +324,7 @@ def create_app(
             return CompetitorAnalysisResponse(**analysis)
         except Exception as e:
             logger.error("Error analyzing competitors: %s", e)
-            raise HTTPException(status_code=500, detail=str(e)) from e
+            raise HTTPException(status_code=500, detail="Failed to analyze competitors") from e
 
     # ===== Market Insights =====
     @app.get(
@@ -376,7 +385,7 @@ def create_app(
             }
         except Exception as e:
             logger.error("Error getting market insights for %s: %s", article, e)
-            raise HTTPException(status_code=500, detail=str(e)) from e
+            raise HTTPException(status_code=500, detail="Failed to get market insights") from e
 
     # ===== Generate Description =====
     @app.post(
@@ -412,7 +421,7 @@ def create_app(
             return {"description": description}
         except Exception as e:
             logger.error("Error generating description: %s", e)
-            raise HTTPException(status_code=500, detail=str(e)) from e
+            raise HTTPException(status_code=500, detail="Failed to generate description") from e
 
     # ===== Error handler =====
     @app.exception_handler(Exception)
@@ -420,7 +429,7 @@ def create_app(
         logger.error("Unhandled exception: %s", exc, exc_info=True)
         return JSONResponse(
             status_code=500,
-            content={"error": "Internal server error", "detail": str(exc)},
+            content={"error": "Internal server error", "detail": "An unexpected error occurred"},
         )
 
     return app

@@ -1,41 +1,39 @@
-"""Centralized logging configuration."""
+"""Centralized logging configuration using structlog with JSON output."""
 
 import logging
+import os
 import sys
 
+import structlog
 
-def setup_logging(level: str | None = None) -> logging.Logger:
-    """Настройка логирования для всего приложения.
+
+def setup_logging(level: str | None = None) -> None:
+    """Configure structlog with JSON rendering for production use.
 
     Args:
-        level: Уровень логирования (DEBUG, INFO, WARNING, ERROR).
-               Если None — берётся из LOG_LEVEL env или INFO.
-
-    Returns:
-        Корневой логгер.
+        level: Log level (DEBUG, INFO, WARNING, ERROR).
+               Falls back to LOG_LEVEL env var or INFO.
     """
-    import os
-
     log_level = level or os.getenv("LOG_LEVEL", "INFO").upper()
-    fmt = os.getenv(
-        "LOG_FORMAT",
-        "%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
+
+    structlog.configure(
+        processors=[
+            structlog.contextvars.merge_contextvars,
+            structlog.processors.add_log_level,
+            structlog.processors.StackInfoRenderer(),
+            structlog.dev.set_exc_info,
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.JSONRenderer(),
+        ],
+        wrapper_class=structlog.make_filtering_bound_logger(
+            getattr(logging, log_level, logging.INFO)
+        ),
+        context_class=dict,
+        logger_factory=structlog.PrintLoggerFactory(file=sys.stdout),
+        cache_logger_on_first_use=True,
     )
 
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(logging.Formatter(fmt, datefmt="%Y-%m-%d %H:%M:%S"))
 
-    root_logger = logging.getLogger()
-    root_logger.setLevel(getattr(logging, log_level, logging.INFO))
-    # Avoid duplicate handlers
-    if not root_logger.handlers:
-        root_logger.addHandler(handler)
-    else:
-        root_logger.handlers[0] = handler
-
-    return root_logger
-
-
-def get_logger(name: str) -> logging.Logger:
-    """Получить логгер для конкретного модуля."""
-    return logging.getLogger(name)
+def get_logger(name: str) -> structlog.BoundLogger:
+    """Get a structlog logger bound to the given module name."""
+    return structlog.get_logger(name)
