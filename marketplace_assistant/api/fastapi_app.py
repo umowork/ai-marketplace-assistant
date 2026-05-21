@@ -1,7 +1,20 @@
 """FastAPI application — routes for product analysis, feedbacks, competitors."""
 
 
-from fastapi import FastAPI, HTTPException, Query
+import os
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Security
+from fastapi.security import APIKeyHeader
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
+
+_api_key_header = APIKeyHeader(name='X-API-Key', auto_error=False)
+
+def require_api_key(api_key: str | None = Security(_api_key_header)):
+    expected = os.getenv('API_KEY')
+    if expected and api_key != expected:
+        raise HTTPException(status_code=401, detail='Invalid API key')
 from fastapi.responses import JSONResponse
 
 from marketplace_assistant.analytics.llm_analytics import LLMAnalytics
@@ -28,6 +41,7 @@ from marketplace_assistant.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+limiter = Limiter(key_func=get_remote_address)
 # Live instances (lazy init)
 _wb_parser: WildberriesParser | None = None
 _ozon_parser: OzonParser | None = None
@@ -52,6 +66,10 @@ def create_app(
         description="API для аналитики товаров на Wildberries и Ozon",
         version="0.2.0",
     )
+
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_middleware(SlowAPIMiddleware)
 
     # Lazy parsers factory
     def get_wb_parser() -> WildberriesParser:
@@ -106,7 +124,10 @@ def create_app(
         tags=["Product"],
         summary="Получить карточку товара",
     )
+    @limiter.limit("30/minute")
     async def get_product(
+        request: Request,
+        _api_key: None = Depends(require_api_key),
         article: str = Query(..., description="Артикул товара"),
         marketplace: str = Query("wb", description="Маркетплейс: wb или ozon"),
     ):
@@ -132,7 +153,10 @@ def create_app(
         tags=["Feedbacks"],
         summary="Получить отзывы на товар",
     )
+    @limiter.limit("30/minute")
     async def get_feedbacks(
+        request: Request,
+        _api_key: None = Depends(require_api_key),
         article: str = Query(..., description="Артикул товара"),
         marketplace: str = Query("wb", description="Маркетплейс"),
         limit: int = Query(50, ge=1, le=500, description="Количество отзывов"),
@@ -170,7 +194,10 @@ def create_app(
         tags=["Analytics"],
         summary="Анализ отзывов на товар",
     )
+    @limiter.limit("30/minute")
     async def analyze_feedbacks(
+        request: Request,
+        _api_key: None = Depends(require_api_key),
         article: str = Query(..., description="Артикул товара"),
         marketplace: str = Query("wb", description="Маркетплейс"),
         limit: int = Query(100, ge=1, le=500, description="Количество отзывов для анализа"),
@@ -211,7 +238,10 @@ def create_app(
         tags=["Analytics"],
         summary="Тренд цены товара",
     )
+    @limiter.limit("30/minute")
     async def price_trend(
+        request: Request,
+        _api_key: None = Depends(require_api_key),
         article: str = Query(..., description="Артикул товара"),
         marketplace: str = Query("wb", description="Маркетплейс"),
         days: int = Query(30, ge=1, le=365, description="Глубина анализа (дни)"),
@@ -247,7 +277,10 @@ def create_app(
         tags=["Analytics"],
         summary="Анализ конкурентов по запросу",
     )
+    @limiter.limit("30/minute")
     async def competitors(
+        request: Request,
+        _api_key: None = Depends(require_api_key),
         query: str = Query(..., description="Поисковый запрос"),
         article: str | None = Query(None, description="Артикул вашего товара для сравнения"),
         marketplace: str = Query("wb", description="Маркетплейс"),
@@ -290,7 +323,10 @@ def create_app(
         tags=["Analytics"],
         summary="Полная аналитика по товару",
     )
+    @limiter.limit("30/minute")
     async def market_insights(
+        request: Request,
+        _api_key: None = Depends(require_api_key),
         article: str = Query(..., description="Артикул товара"),
         marketplace: str = Query("wb", description="Маркетплейс"),
     ):
@@ -348,7 +384,10 @@ def create_app(
         tags=["AI"],
         summary="Сгенерировать SEO-описание товара",
     )
+    @limiter.limit("30/minute")
     async def generate_description(
+        request: Request,
+        _api_key: None = Depends(require_api_key),
         product_name: str = Query(..., description="Название товара"),
         features: str = Query("", description="Характеристики через запятую"),
         marketplace: str = Query("wb", description="Маркетплейс"),
