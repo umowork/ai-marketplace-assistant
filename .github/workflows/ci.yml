@@ -21,6 +21,8 @@ jobs:
       - name: Python syntax check
         run: find . -name '*.py' -not -path './.venv/*' -not -path './tests/*' -exec python3 -m py_compile {} +
       - name: Tests
-        run: python3 -m pytest tests/ -v 
+        run: python3 -m pytest tests/ -v --cov=. --cov-report=term-missing --cov-fail-under=70
+      - name: SAST (semgrep)
+        run: semgrep --config p/python --config p/owasp-top-ten --error .
       - name: Lint (ruff)
         uses: chartboost/ruff-action@v1
